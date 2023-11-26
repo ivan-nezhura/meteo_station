@@ -14,9 +14,8 @@
 #include <NTPClient.h>
 #include <WiFiUdp.h>
 
-#include "helpers.h"
 #include "secrets.h"
-//  pair code 46637726
+#include "ScreenTranslator.h"
 
 #define HARDWARE_TYPE MD_MAX72XX::FC16_HW
 
@@ -25,21 +24,12 @@
 
 #define MODE_BUTTON_PIN 13
 
-#define MODE_TIME 1
-#define MODE_TEMPERATURE 2
-#define MODE_HUMIDITY 3
-
-
-
 
 Adafruit_BME280 bme;
-unsigned long delayTime = 5000;
-void printValues();
 
 bool isBmeConnected;
 
 int lastMillis = 0;
-bool showTemp = true;
 
 MD_Parola Display = MD_Parola(HARDWARE_TYPE, CS_PIN, MAX_DEVICES);
 
@@ -48,6 +38,8 @@ WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "europe.pool.ntp.org", 3600 * 2, 60000);
 
 GButton modeButton(MODE_BUTTON_PIN);
+
+ScreenTranslator screenTranslator(200);
 
 struct DEV_TempSensor : Service::TemperatureSensor {
 
@@ -87,7 +79,6 @@ struct DEV_HumSensor : Service::HumiditySensor {
   }
 };
 
-int mode = MODE_TIME;
 
 void setup() {
   Serial.begin(115200);
@@ -96,17 +87,21 @@ void setup() {
 
   Display.begin();
   Display.setIntensity(0);
+  Display.setTextAlignment(PA_CENTER);
   Display.displayClear();
 
   isBmeConnected = bme.begin(0x76);
+  if (!isBmeConnected) {
+    Serial.println("Temperature sensor no connect");
+  }
 
   homeSpan.setLogLevel(1);
   homeSpan.setWifiCredentials(wifi_ssid, wifi_pwd);
 
   homeSpan.begin(Category::Sensors,"Awesome meteo station");
-  // new SpanAccessory();  
-  //     new Service::AccessoryInformation();
-  //       new Characteristic::Identify(); 
+  new SpanAccessory();  
+      new Service::AccessoryInformation();
+        new Characteristic::Identify(); 
         
     new SpanAccessory();
       new Service::AccessoryInformation();
@@ -138,39 +133,11 @@ void setup() {
 void loop() { 
   homeSpan.poll();
   modeButton.tick();
+  
 
   if (modeButton.isClick()) {
-    if (mode == MODE_TIME) {
-      mode = MODE_TEMPERATURE;
-    } else if (mode == MODE_TEMPERATURE) {
-      mode = MODE_HUMIDITY;
-    } else {
-      mode = MODE_TIME;
-    }
+    screenTranslator.onButtonClick(bme, Display, timeClient);
   }
 
-  Display.setTextAlignment(PA_CENTER);
-
-
-  if ((millis() - lastMillis) > 200) {
-    lastMillis = millis();
-
-    if (mode == MODE_TIME) {
-        Display.print(getFormattedTime(timeClient));
-    } else if (mode == MODE_TEMPERATURE) {
-      if (isBmeConnected) {
-          Display.printf("%.1f C", bme.readTemperature());
-      } else {
-        Serial.println("Temperature sensor no connect");
-        Display.print("C:err");
-      } 
-    } else {
-      if (isBmeConnected) {
-        Display.printf("H: %d ", (int) bme.readHumidity());
-      } else {
-        Serial.println("Humidity sensor no connect");
-        Display.print("H:err");
-      }
-    }
-  }  
+  screenTranslator.tick(bme, Display, timeClient);  
 }
