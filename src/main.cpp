@@ -39,7 +39,7 @@ NTPClient timeClient(ntpUDP, "europe.pool.ntp.org", 3600 * 2, 60000);
 
 GButton modeButton(MODE_BUTTON_PIN);
 
-ScreenTranslator screenTranslator(200);
+ScreenTranslator screenTranslator(bme, Display, timeClient);
 
 struct DEV_TempSensor : Service::TemperatureSensor {
 
@@ -136,8 +136,8 @@ void loop() {
   
 
   if (modeButton.isClick()) {
-    screenTranslator.onButtonClick(bme, Display, timeClient);
+    screenTranslator.onButtonClick();
   }
 
-  screenTranslator.tick(bme, Display, timeClient);  
+  screenTranslator.tick();  
 }
